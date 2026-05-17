@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="My List">
+<meta name="theme-color" content="#0f0f0f">
+<title>My List</title>
+
+<!-- PWA Manifest inline -->
+<link rel="manifest" href="data:application/json,{
+  %22name%22:%22My%20List%22,
+  %22short_name%22:%22My%20List%22,
+  %22display%22:%22standalone%22,
+  %22background_color%22:%22%230f0f0f%22,
+  %22theme_color%22:%22%230f0f0f%22,
+  %22start_url%22:%22.%22,
+  %22icons%22:[{%22src%22:%22data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f0f0f'/%3E%3Ctext y='.9em' font-size='72' x='14'%3E✓%3C/text%3E%3C/svg%3E%22,%22sizes%22:%22any%22,%22type%22:%22image/svg+xml%22}]
+}">
+
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Azeret+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --bg: #0f0f0f;
+  --surface: #1a1a1a;
+  --border: #2a2a2a;
+  --text: #f0ede6;
+  --muted: #666;
+  --accent: #e8c547;
+  --done: #333;
+  --done-text: #555;
+  --red: #e85447;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Azeret Mono', monospace;
+  overscroll-behavior: none;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+}
+
+/* ── SCREENS ── */
+.screen { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.screen.active { display: flex; }
+
+/* ── HEADER ── */
+.header {
+  padding: 20px 20px 12px;
+  flex-shrink: 0;
+}
+
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.app-label {
+  font-size: 10px;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+h1 {
+  font-family: 'Syne', sans-serif;
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text);
+}
+
+h1 span { color: var(--accent); }
+
+.date-str {
+  font-size: 10px;
+  color: var(--muted);
+  margin-top: 6px;
+  letter-spacing: 0.08em;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.icon-btn {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.icon-btn:active { transform: scale(0.92); }
+.icon-btn.accent { background: var(--accent); border-color: var(--accent); color: #000; }
+
+/* ── PROGRESS ── */
+.progress-wrap {
+  padding: 8px 20px 16px;
+  flex-shrink: 0;
+}
+
+.progress-track {
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  width: 0%;
+  transition: width 0.35s cubic-bezier(.4,0,.2,1);
+}
+
+.progress-meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 8px;
+}
+
+.progress-count {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+}
+
+.progress-pct {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.1em;
+}
+
+/* ── TASK LIST ── */
+.task-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 20px 100px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.task-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: opacity 0.2s;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.task-item:first-child { border-top: 1px solid var(--border); }
+.task-item:active { opacity: 0.6; }
+
+.checkbox {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--muted);
+  border-radius: 4px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  transition: all 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: transparent;
+}
+
+.task-item.done .checkbox {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #000;
+}
+
+.task-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  transition: color 0.2s;
+  flex: 1;
+}
+
+.task-item.done .task-text {
+  color: var(--done-text);
+  text-decoration: line-through;
+  text-decoration-color: var(--done-text);
+}
+
+/* ── EMPTY STATE ── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  height: 200px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.empty-icon { font-size: 36px; opacity: 0.4; }
+.empty-text { font-size: 12px; letter-spacing: 0.08em; line-height: 1.6; }
+.empty-cta {
+  font-size: 11px;
+  color: var(--accent);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border-bottom: 1px solid var(--accent);
+  padding-bottom: 1px;
+}
+
+/* ── BOTTOM BAR ── */
+.bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0; right: 0;
+  padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--bg) 30%);
+  display: flex;
+  gap: 10px;
+}
+
+.btn {
+  flex: 1;
+  padding: 14px;
+  border-radius: 12px;
+  font-family: 'Azeret Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  border: none;
+  transition: all 0.15s;
+}
+
+.btn:active { transform: scale(0.97); }
+
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  font-weight: 500;
+}
+
+.btn-ghost {
+  background: var(--surface);
+  color: var(--muted);
+  border: 1px solid var(--border);
+}
+
+/* ── PASTE SCREEN ── */
+#pasteScreen {
+  padding: 24px 20px;
+}
+
+.back-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  cursor: pointer;
+  margin-bottom: 28px;
+  width: fit-content;
+}
+
+.back-btn:active { opacity: 0.6; }
+
+.paste-title {
+  font-family: 'Syne', sans-serif;
+  font-size: 24px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.paste-sub {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 20px;
+}
+
+.paste-sub code {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--accent);
+  font-family: 'Azeret Mono', monospace;
+  font-size: 11px;
+}
+
+textarea {
+  width: 100%;
+  height: 240px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: 'Azeret Mono', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 16px;
+  resize: none;
+  outline: none;
+  -webkit-appearance: none;
+  transition: border-color 0.15s;
+}
+
+textarea:focus { border-color: var(--accent); }
+textarea::placeholder { color: var(--muted); }
+
+.parse-btn {
+  width: 100%;
+  margin-top: 12px;
+  padding: 16px;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 12px;
+  font-family: 'Azeret Mono', monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.parse-btn:active { transform: scale(0.98); opacity: 0.9; }
+
+.error-msg {
+  font-size: 11px;
+  color: var(--red);
+  margin-top: 10px;
+  display: none;
+  letter-spacing: 0.05em;
+}
+
+/* ── COMPLETION FLASH ── */
+.flash {
+  position: fixed;
+  inset: 0;
+  background: var(--accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 100;
+}
+
+.flash.show { opacity: 1; pointer-events: all; }
+.flash-icon { font-size: 64px; }
+.flash-text { font-family: 'Syne', sans-serif; font-size: 28px; font-weight: 800; color: #000; }
+.flash-sub { font-size: 11px; color: rgba(0,0,0,0.5); letter-spacing: 0.1em; }
+</style>
+</head>
+<body>
+
+<!-- MAIN SCREEN -->
+<div class="screen active" id="mainScreen">
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <div class="app-label">Daily focus</div>
+        <h1>My <span>List</span></h1>
+        <div class="date-str" id="dateStr"></div>
+      </div>
+      <div class="header-actions">
+        <div class="icon-btn" onclick="confirmReset()" title="Reset">↺</div>
+        <div class="icon-btn accent" onclick="showPaste()" title="Import">+</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="progress-wrap">
+    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-meta">
+      <span class="progress-count" id="progressCount">No tasks yet</span>
+      <span class="progress-pct" id="progressPct"></span>
+    </div>
+  </div>
+
+  <div class="task-list" id="taskList">
+    <div class="empty" id="emptyState">
+      <div class="empty-icon">◻</div>
+      <div class="empty-text">No tasks loaded yet.<br>Import your checklist to get started.</div>
+      <div class="empty-cta" onclick="showPaste()">Import list →</div>
+    </div>
+  </div>
+
+  <div class="bottom-bar">
+    <button class="btn btn-ghost" onclick="confirmReset()">Clear</button>
+    <button class="btn btn-primary" onclick="showPaste()">＋ Import list</button>
+  </div>
+</div>
+
+<!-- PASTE SCREEN -->
+<div class="screen" id="pasteScreen">
+  <div class="back-btn" onclick="showMain()">← Back</div>
+  <div class="paste-title">Import List</div>
+  <div class="paste-sub">
+    Paste your checklist from Claude.<br>
+    Each line starting with <code>- [ ]</code> or <code>-</code> becomes a task.
+  </div>
+  <textarea id="pasteInput" placeholder="- [ ] Review emails&#10;- [ ] Drink water&#10;- [ ] Focus block 90 min&#10;- [ ] Reply to messages&#10;- [ ] Plan tomorrow"></textarea>
+  <div class="error-msg" id="errorMsg">No tasks found. Make sure each task is on its own line starting with - or - [ ]</div>
+  <button class="parse-btn" onclick="parseAndLoad()">Generate Checklist</button>
+</div>
+
+<!-- COMPLETION FLASH -->
+<div class="flash" id="flash">
+  <div class="flash-icon">✓</div>
+  <div class="flash-text">All done!</div>
+  <div class="flash-sub">Tap to dismiss</div>
+</div>
+
+<script>
+let tasks = [];
+let done = [];
+
+// Date
+const d = new Date();
+document.getElementById('dateStr').textContent = d.toLocaleDateString('en-GB', {
+  weekday: 'long', day: 'numeric', month: 'long'
+});
+
+function showMain() {
+  document.getElementById('pasteScreen').classList.remove('active');
+  document.getElementById('mainScreen').classList.add('active');
+}
+
+function showPaste() {
+  document.getElementById('mainScreen').classList.remove('active');
+  document.getElementById('pasteScreen').classList.add('active');
+  document.getElementById('errorMsg').style.display = 'none';
+  setTimeout(() => document.getElementById('pasteInput').focus(), 100);
+}
+
+function parseAndLoad() {
+  const raw = document.getElementById('pasteInput').value;
+  const lines = raw.split('\n');
+  const parsed = [];
+
+  lines.forEach(line => {
+    let text = line.trim();
+    if (!text) return;
+    // Strip markdown checklist formats: - [ ], - [x], * [ ], *, -, •
+    text = text.replace(/^[-*•]\s*\[[ xX]\]\s*/, '');
+    text = text.replace(/^[-*•]\s+/, '');
+    text = text.replace(/^\d+\.\s+/, '');
+    if (text.length > 0) parsed.push(text);
+  });
+
+  if (parsed.length === 0) {
+    document.getElementById('errorMsg').style.display = 'block';
+    return;
+  }
+
+  tasks = parsed;
+  done = new Array(tasks.length).fill(false);
+  document.getElementById('pasteInput').value = '';
+  document.getElementById('errorMsg').style.display = 'none';
+  renderTasks();
+  showMain();
+}
+
+function renderTasks() {
+  const list = document.getElementById('taskList');
+  const empty = document.getElementById('emptyState');
+
+  if (tasks.length === 0) {
+    list.innerHTML = '';
+    list.appendChild(empty);
+    empty.style.display = 'flex';
+    updateProgress();
+    return;
+  }
+
+  empty.style.display = 'none';
+  list.innerHTML = '';
+
+  tasks.forEach((t, i) => {
+    const item = document.createElement('div');
+    item.className = 'task-item' + (done[i] ? ' done' : '');
+    item.innerHTML = `
+      <div class="checkbox">${done[i] ? '✓' : ''}</div>
+      <div class="task-text">${escapeHtml(t)}</div>
+    `;
+    item.addEventListener('click', () => toggle(i));
+    list.appendChild(item);
+  });
+
+  list.appendChild(document.getElementById('emptyState'));
+  updateProgress();
+}
+
+function toggle(i) {
+  done[i] = !done[i];
+  renderTasks();
+
+  // Check if all done
+  if (tasks.length > 0 && done.every(Boolean)) {
+    setTimeout(() => {
+      const flash = document.getElementById('flash');
+      flash.classList.add('show');
+      flash.onclick = () => flash.classList.remove('show');
+    }, 300);
+  }
+}
+
+function updateProgress() {
+  const total = tasks.length;
+  const count = done.filter(Boolean).length;
+  const fill = document.getElementById('progressFill');
+  const countEl = document.getElementById('progressCount');
+  const pctEl = document.getElementById('progressPct');
+
+  if (total === 0) {
+    fill.style.width = '0%';
+    countEl.textContent = 'No tasks yet';
+    pctEl.textContent = '';
+    return;
+  }
+
+  const pct = Math.round((count / total) * 100);
+  fill.style.width = pct + '%';
+  countEl.textContent = `${count} of ${total} done`;
+  pctEl.textContent = pct + '%';
+}
+
+function confirmReset() {
+  if (tasks.length === 0) return;
+  if (confirm('Clear all tasks?')) {
+    tasks = [];
+    done = [];
+    renderTasks();
+  }
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Service worker for PWA offline support
+if ('serviceWorker' in navigator) {
+  const sw = `
+    self.addEventListener('install', e => self.skipWaiting());
+    self.addEventListener('fetch', e => e.respondWith(fetch(e.request).catch(() => new Response(''))));
+  `;
+  const blob = new Blob([sw], { type: 'application/javascript' });
+  navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(() => {});
+}
+</script>
+</body>
+</html>
